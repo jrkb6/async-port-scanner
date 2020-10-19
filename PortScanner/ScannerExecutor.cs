@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -61,18 +62,15 @@ namespace PortScanner
             }
             else
             {
-                if (quickScan)
-                {
-                    throw new NotImplementedException("Multi threaded quick scan will be implemented in future..");
-                }
-
                 //if you have given more tasks than ips then decide to parallelization on port enums
                 //split tasks for each ip
                 int numberOfPortTasks = _numberOfTasks / ipCount;
-                chunkSize = 65536 / numberOfPortTasks;
+                var enumerablePorts = quickScan ? Scanner.commonPorts : Enumerable.Range(1, 65535);
+                chunkSize = enumerablePorts.Count() / numberOfPortTasks;
+                chunkSize = chunkSize == 0 ? 1 : chunkSize;
                 logger.Trace("No need to split chunks for ips. Splitting ports to {} number of tasks",
                     numberOfPortTasks);
-                IEnumerable<List<int>> portsChunks = SplitPortChunks(Enumerable.Range(1, 65535), chunkSize);
+                IEnumerable<List<int>> portsChunks = SplitPortChunks(enumerablePorts, chunkSize);
                 logger.Trace("Ports with chunks size {} ", chunkSize);
 
                 foreach (var ports in portsChunks)

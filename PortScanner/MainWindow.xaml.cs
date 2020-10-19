@@ -14,8 +14,7 @@ namespace PortScanner
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    /// 
- 
+    ///
     public partial class MainWindow : Window
     {
         private static Logger logger = LogManager.GetCurrentClassLogger();
@@ -34,7 +33,6 @@ namespace PortScanner
             stopButton.IsEnabled = false;
             clearButton.IsEnabled = false;
             numberOfTaskSlider.Maximum = maxNumberOfTasks;
-
         }
 
 
@@ -66,16 +64,13 @@ namespace PortScanner
 
         private void scanButton_Click(object sender, RoutedEventArgs e)
         {
-            
             DoScan(false);
         }
+
         private void quickScanButton_Click(object sender, RoutedEventArgs e)
         {
-            
             DoScan(true);
         }
-
-
 
 
         private void stopButton_Click(object sender, RoutedEventArgs e)
@@ -100,7 +95,6 @@ namespace PortScanner
             openPortListView.ItemsSource = items;
             numberOfTaskSlider.Value = 1;
             IPRangeInput.Text = "";
-
         }
 
 
@@ -152,6 +146,8 @@ namespace PortScanner
             IEnumerable<IPAddress> enumerable = ipRange.GetAllIP();
             scannerExecutor = new ScannerExecutor(numberOfTasks);
             scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan);
+
+
             stopButton.IsEnabled = true;
             Task.WhenAll(scannerExecutor.GetRunningTasks().ToArray());
             logger.Trace("ALL FINISHED");
@@ -161,10 +157,10 @@ namespace PortScanner
         {
             logger.Trace("Before dispatcher for port{}", port.Port);
             Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                logger.Debug("Adding port inside dispatcher");
-                this.items.Add(port);
-            }
+                {
+                    logger.Debug("Adding port inside dispatcher");
+                    this.items.Add(port);
+                }
             ));
         }
 
