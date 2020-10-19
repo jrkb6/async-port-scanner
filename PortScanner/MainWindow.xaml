@@ -15,7 +15,7 @@
             <ColumnDefinition Width="44*"/>
             <ColumnDefinition Width="491*"/>
         </Grid.ColumnDefinitions>
-        <Slider x:Name="numberOfTaskSlider" HorizontalAlignment="Left" Margin="16,61,0,0" VerticalAlignment="Top" Width="120" ValueChanged="numberOfTaskSlider_ValueChanged" TickPlacement="BottomRight" Minimum="1" Grid.ColumnSpan="3" Grid.Column="1"/>
+        <Slider x:Name="numberOfTaskSlider" HorizontalAlignment="Left" Margin="16,61,0,0" VerticalAlignment="Top" Width="120" ValueChanged="numberOfTaskSlider_ValueChanged" TickPlacement="BottomRight" Minimum="1" Grid.ColumnSpan="3" Grid.Column="1" Maximum="113"/>
         <Button x:Name="scanButton" Content="Scan" HorizontalAlignment="Left" Margin="153,41,0,0" VerticalAlignment="Top" Click="scanButton_Click" Grid.Column="5" Width="76"/>
         <TextBlock HorizontalAlignment="Left" Margin="22,15,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="74" Height="34" Grid.Column="4" Grid.ColumnSpan="2"><Run Text="IP Range"/><LineBreak/><Run/><LineBreak/><Run/></TextBlock>
         <TextBlock HorizontalAlignment="Left" Margin="8,15,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="166" Height="34" Grid.ColumnSpan="3" Grid.Column="1"><Run Language="tr-tr" Text="Number of Parallel Tasks"/><LineBreak/><Run Language="tr-tr"/></TextBlock>
@@ -23,7 +23,7 @@
         <TextBox x:Name="IPRangeInput" ToolTip="Form of (x.x.x.x/x) or (x.x.x.x-x)" ToolTipService.ShowDuration="4000" HorizontalAlignment="Left" Margin="22,61,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120" Height="24" Grid.Column="4" Grid.ColumnSpan="2"/>
         <Button x:Name="stopButton" Content="Stop" HorizontalAlignment="Left" Margin="251,39,0,0" VerticalAlignment="Top" Click="stopButton_Click" RenderTransformOrigin="0.604,-4.191" Grid.Column="5" IsEnabled="False" Width="76" Height="20"/>
         <Button x:Name="clearButton" Content="Clear" HorizontalAlignment="Left" Margin="359,39,0,0" VerticalAlignment="Top" Click="clearButton_Click" RenderTransformOrigin="0.604,-4.191" Grid.Column="5" Width="76" Height="20"/>
-        <ListView x:Name="openPortListView" Margin="16,102,40,10" Grid.ColumnSpan="3" Grid.Column="1">
+        <ListView x:Name="openPortListView" ItemsSource="{Binding items, IsAsync=True}" Margin="16,102,40,10" Grid.ColumnSpan="3" Grid.Column="1">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="Host" Width="120" DisplayMemberBinding="{Binding Host}" />

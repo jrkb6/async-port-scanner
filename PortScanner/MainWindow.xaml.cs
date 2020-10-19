@@ -6,7 +6,6 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using PortScanner.Model;
 
@@ -16,34 +15,26 @@ namespace PortScanner
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     /// 
-    /*
-     TODO
-
-    Complete ScannerExecutor create a scan method in executor that calls all Scanner scans in async and puts to global port data.
-     
-     */
+ 
     public partial class MainWindow : Window
     {
         private static Logger logger = LogManager.GetCurrentClassLogger();
         private int numberOfTasks;
         private ObservableCollection<OpenPort> items;
         ScannerExecutor scannerExecutor;
-        private readonly object _collectionOfObjectsSync = new object();
         private bool scanning = false;
+        private const int maxNumberOfTasks = 4001;
 
         public MainWindow()
         {
             InitializeComponent();
             items = new ObservableCollection<OpenPort>();
             openPortListView.ItemsSource = items;
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                BindingOperations.EnableCollectionSynchronization(items, _collectionOfObjectsSync);
-            }));
             logger.Info("App started..");
             stopButton.IsEnabled = false;
             clearButton.IsEnabled = false;
-            
+            numberOfTaskSlider.Maximum = maxNumberOfTasks;
+
         }
 
 
@@ -56,7 +47,7 @@ namespace PortScanner
             }
             else
             {
-                if (numberOfTasks <= 0 || numberOfTasks >= 10)
+                if (numberOfTasks <= 0 || numberOfTasks >= maxNumberOfTasks)
                 {
                     numberOfTasks = 1;
                 }
@@ -148,30 +139,36 @@ namespace PortScanner
             }
             catch (ArgumentNullException ex)
             {
-                onInputError(ex);
+                OnInputError(ex);
                 return;
             }
             catch (ArgumentException ex)
             {
-                onInputError(ex);
+                OnInputError(ex);
                 return;
             }
 
 
             IEnumerable<IPAddress> enumerable = ipRange.GetAllIP();
             scannerExecutor = new ScannerExecutor(numberOfTasks);
-            scannerExecutor.BuildExecutor(enumerable, (openPort) => updateGui(openPort), quickScan);
+            scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan);
             stopButton.IsEnabled = true;
             Task.WhenAll(scannerExecutor.GetRunningTasks().ToArray());
             logger.Trace("ALL FINISHED");
         }
 
-        public void updateGui(OpenPort port)
+        public void UpdateGui(OpenPort port)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(() => this.items.Add(port)));
+            logger.Trace("Before dispatcher for port{}", port.Port);
+            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                logger.Debug("Adding port inside dispatcher");
+                this.items.Add(port);
+            }
+            ));
         }
 
-        private void onInputError(Exception ex)
+        private void OnInputError(Exception ex)
         {
             logger.Error(ex);
             IPRangeInput.Focus();
