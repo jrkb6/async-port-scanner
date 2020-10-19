@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -18,7 +19,9 @@ namespace PortScanner
         private static Logger logger = LogManager.GetCurrentClassLogger();
         private const int MinPort = 1;
         private const int MaxPort = 65535;
+        private int numberOfPortTasks = 0;
         readonly List<IPAddress> ips;
+
 
         private int[] ports = new[]
         {
@@ -44,6 +47,12 @@ namespace PortScanner
             logger.Info("Scanner initialized..");
             this.ips = ips;
         }
+        public Scanner(IEnumerable<IPAddress> addresses)
+        {
+            logger.Info("Scanner initialized..");
+            this.ips = addresses.ToList();
+        }
+        
 
         /// <summary>
         /// 
@@ -72,26 +81,69 @@ namespace PortScanner
                                 logger.Debug("Shutdown");
                                 state.Break();
                             }
-                            ScanPortsAsync(ip, port, callback);
+
+                            ScanPortsAsync(ip, port, callback, token);
                         });
                     });
             }
             else
             {
-                Parallel.ForEach(ips,
-                    (ip, state) => {
+                foreach (var ip in ips)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        logger.Debug("Shutdownn");
+                        break;
+                    }
+
+                    for (var port = MinPort; port < MaxPort; port++)
+                    {
                         if (token.IsCancellationRequested)
                         {
                             logger.Debug("Shutdown");
-                            state.Break();
+                            break;
                         }
-                        Parallel.For(MinPort, MaxPort, (port,state) => {
-                            if (token.IsCancellationRequested)
-                            {
-                                logger.Debug("Shutdown");
-                                state.Break();
-                            }
-                            ScanPortsAsync(ip, port, callback); }); });
+
+                        ScanPortsAsync(ip, port, callback, token);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="callback"></param>
+        /// <param name="scanOnlyCommonPorts"></param>
+        /// <param name="token"></param>
+        public void ScanAsyncOnPorts(Action<OpenPort> callback, bool scanOnlyCommonPorts, CancellationToken token,List<int> ports)
+        {
+            logger.Info(("ThreadId {} -- Scan is starting..", Thread.CurrentThread.ManagedThreadId));
+            if (scanOnlyCommonPorts)
+            {
+               //to be implemented..
+            }
+            else
+            {
+                foreach (var port in ports)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        logger.Debug("Shutdownn");
+                        break;
+                    }
+
+                    foreach (var ip in ips)
+                    {
+                        if (token.IsCancellationRequested)
+                        {
+                            logger.Debug("Shutdown");
+                            break;
+                        }
+                        ScanPortsAsync(ip, port, callback, token);
+                    }
+                        
+                }
             }
         }
 
@@ -102,7 +154,8 @@ namespace PortScanner
         /// <param name="port"></param> port
         /// <param name="callback"></param> ui thread
         /// <returns></returns>
-        private async Task ScanPortsAsync(IPAddress address, int port, Action<OpenPort> callback)
+        private async Task ScanPortsAsync(IPAddress address, int port, Action<OpenPort> callback,
+            CancellationToken mainTaskToken)
         {
             var timeOut = TimeSpan.FromSeconds(5);
             var cancellationCompletionSource = new TaskCompletionSource<bool>();
@@ -113,17 +166,22 @@ namespace PortScanner
                 {
                     using (var client = new TcpClient())
                     {
+                        if (mainTaskToken.IsCancellationRequested)
+                        {
+                            logger.Trace("Main thread closed. Stopping checking for port >= {} ", port);
+                            return;
+                        }
+                        logger.Trace("Connection requesting for {}:{}", address.ToString(), port);
                         var task = client.ConnectAsync(address, port);
-
                         using (cts.Token.Register(() => cancellationCompletionSource.TrySetResult(true)))
                         {
                             if (task != await Task.WhenAny(task, cancellationCompletionSource.Task))
                             {
-                                logger.Trace("Exception on port {} from host {}", port, address.ToString());
+                                //logger.Trace("Exception on port {} from host {}", port, address.ToString());
                                 throw new TaskCanceledException(task);
                             }
 
-                            if (task.IsCompletedSuccessfully)
+                            if (task.IsCompletedSuccessfully && !mainTaskToken.IsCancellationRequested)
                             {
                                 logger.Trace("Open port {} from host {}", port, address.ToString());
                                 callback(new OpenPort() {Host = address.ToString(), Port = port});
@@ -134,8 +192,32 @@ namespace PortScanner
             }
             catch (TaskCanceledException)
             {
-                //creates too many logs.
-                //logger.Error(ex, "Error on async call for port {}",port);
+                logger.Trace("Port skipped {}", port);
+            }
+        }
+
+        private void ScanPort(IPAddress address, int port, Action<OpenPort> callback,
+            CancellationToken mainTaskToken)
+        {
+            if (mainTaskToken.IsCancellationRequested)
+            {
+                logger.Trace("Port skipped {}", port);
+                return;
+            }
+
+            using (var client = new TcpClient())
+            {
+                try
+                {
+                    logger.Trace("Connection requesting for {}:{}",  address.ToString(), port);
+                    client.Connect(address, port);
+                    logger.Trace("Open port {} from host {}", port, address.ToString());
+                    callback(new OpenPort() {Host = address.ToString(), Port = port});
+                }
+                catch (Exception)
+                {
+                    logger.Trace("Port skipped {}", port);
+                }
             }
         }
     }

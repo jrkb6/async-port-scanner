@@ -47,23 +47,42 @@ namespace PortScanner
             if (ipCount > _numberOfTasks)
             {
                 chunkSize = ipCount / _numberOfTasks;
+                logger.Debug("Chunk size for each scanner: {} ", chunkSize);
+                IEnumerable<List<IPAddress>> enumerable = SplitIPChunks<IPAddress>(addresses, chunkSize);
+
+                foreach (var ipList in enumerable)
+                {
+                    var scanner = new Scanner(ipList);
+                    var task = Task.Run(() => scanner.ScanAsync(callback, quickScan, cancellationToken),
+                        cancellationToken);
+
+                    _runningTasks.Add(task);
+                }
             }
             else
             {
-                logger.Trace("No need to split chunks.");
+                if (quickScan)
+                {
+                    throw new NotImplementedException("Multi threaded quick scan will be implemented in future..");
+                }
+
+                //if you have given more tasks than ips then decide to parallelization on port enums
+                //split tasks for each ip
+                int numberOfPortTasks = _numberOfTasks / ipCount;
+                chunkSize = 65536 / numberOfPortTasks;
+                logger.Trace("No need to split chunks for ips. Splitting ports to {} number of tasks",
+                    numberOfPortTasks);
+                IEnumerable<List<int>> portsChunks = SplitPortChunks(Enumerable.Range(1, 65535), chunkSize);
+                logger.Trace("Ports with chunks size {} ", chunkSize);
+
+                foreach (var ports in portsChunks)
+                {
+                    var scanner = new Scanner(addresses);
+                    var task = Task.Run(() => scanner.ScanAsyncOnPorts(callback, quickScan, cancellationToken, ports),
+                        cancellationToken);
+                    _runningTasks.Add(task);
+                }
             }
-
-            logger.Debug("Chunk size for each scanner: {} ", chunkSize);
-            IEnumerable<List<IPAddress>> enumerable = SplitChunks<IPAddress>(addresses, chunkSize);
-
-            Parallel.ForEach(enumerable, (ipList =>
-            {
-                var scanner = new Scanner(ipList);
-                var task = Task.Run(() => scanner.ScanAsync(callback, quickScan, cancellationToken),
-                    cancellationToken);
-
-                _runningTasks.Add(task);
-            }));
         }
 
         /// <summary>
@@ -73,7 +92,8 @@ namespace PortScanner
         /// <param name="source"></param>
         /// <param name="chunkSize"></param>
         /// <returns></returns>
-        private static IEnumerable<List<IPAddress>> SplitChunks<IPAddress>(IEnumerable<IPAddress> source, int chunkSize)
+        private static IEnumerable<List<IPAddress>> SplitIPChunks<IPAddress>(IEnumerable<IPAddress> source,
+            int chunkSize)
         {
             var toReturn = new List<IPAddress>(chunkSize);
             foreach (var item in source)
@@ -82,6 +102,29 @@ namespace PortScanner
                 if (toReturn.Count != chunkSize) continue;
                 yield return toReturn;
                 toReturn = new List<IPAddress>(chunkSize);
+            }
+
+            if (toReturn.Any())
+            {
+                yield return toReturn;
+            }
+        }
+
+
+        /// Split given whole port range into the chunks so that we can share with unique scanner in parallel
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="chunkSize"></param>
+        /// <returns></returns>
+        private static IEnumerable<List<int>> SplitPortChunks(IEnumerable<int> source, int chunkSize)
+        {
+            var toReturn = new List<int>(chunkSize);
+            foreach (var item in source)
+            {
+                toReturn.Add(item);
+                if (toReturn.Count != chunkSize) continue;
+                yield return toReturn;
+                toReturn = new List<int>(chunkSize);
             }
 
             if (toReturn.Any())
