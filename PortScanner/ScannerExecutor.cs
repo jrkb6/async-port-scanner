@@ -39,7 +39,7 @@ namespace PortScanner
         /// <param name="callback"></param>
         /// <param name="quickScan"></param>
         public void BuildExecutor(IEnumerable<IPAddress> addresses, Action<OpenPort> callback,
-            bool quickScan)
+            bool quickScan, int timeoutDuration)
         {
             CancellationToken cancellationToken = _cancellationTokenSource.Token;
             //batch ips to processors
@@ -53,7 +53,7 @@ namespace PortScanner
 
                 foreach (var ipList in enumerable)
                 {
-                    var scanner = new Scanner(ipList);
+                    var scanner = new Scanner(ipList, timeoutDuration);
                     var task = Task.Run(() => scanner.ScanAsync(callback, quickScan, cancellationToken),
                         cancellationToken);
 
@@ -75,7 +75,7 @@ namespace PortScanner
 
                 foreach (var ports in portsChunks)
                 {
-                    var scanner = new Scanner(addresses);
+                    var scanner = new Scanner(addresses, timeoutDuration);
                     var task = Task.Run(() => scanner.ScanAsyncOnPorts(callback, quickScan, cancellationToken, ports),
                         cancellationToken);
                     _runningTasks.Add(task);

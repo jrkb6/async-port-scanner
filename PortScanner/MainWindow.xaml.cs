@@ -17,49 +17,54 @@ namespace PortScanner
     ///
     public partial class MainWindow : Window
     {
-        private static Logger logger = LogManager.GetCurrentClassLogger();
-        private int numberOfTasks;
-        private ObservableCollection<OpenPort> items;
-        ScannerExecutor scannerExecutor;
-        private bool scanning = false;
-        private const int maxNumberOfTasks = 4001;
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+        private int _numberOfTasks;
+        private ObservableCollection<OpenPort> _items;
+        ScannerExecutor _scannerExecutor;
+        private bool _scanning = false;
+        private const int MaxNumberOfTasks = 4001;
+        private int _timeOutDuration;
+        private const int MaxTimeOutDuration = 8000; //ms
+        private const int MinTimeOutDuration = 1000;
+        private const int DefaultTimeOutDuration = 5000;
 
         public MainWindow()
         {
             InitializeComponent();
-            items = new ObservableCollection<OpenPort>();
-            openPortListView.ItemsSource = items;
-            logger.Info("App started..");
+            _items = new ObservableCollection<OpenPort>();
+            openPortListView.ItemsSource = _items;
+            Logger.Info("App started..");
             stopButton.IsEnabled = false;
             clearButton.IsEnabled = false;
-            numberOfTaskSlider.Maximum = maxNumberOfTasks;
+            numberOfTaskSlider.Maximum = MaxNumberOfTasks;
+            _timeOutDuration = DefaultTimeOutDuration;
         }
 
 
         private void numberOfTaskInput_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!int.TryParse(numberOfTaskInput.Text, out numberOfTasks))
+            if (!int.TryParse(numberOfTaskInput.Text, out _numberOfTasks))
             {
                 // If not int clear textbox text
                 numberOfTaskInput.Clear();
             }
             else
             {
-                if (numberOfTasks <= 0 || numberOfTasks >= maxNumberOfTasks)
+                if (_numberOfTasks <= 0 || _numberOfTasks >= MaxNumberOfTasks)
                 {
-                    numberOfTasks = 1;
+                    _numberOfTasks = 1;
                 }
 
-                numberOfTaskInput.Text = numberOfTasks.ToString();
-                numberOfTaskSlider.Value = numberOfTasks;
+                numberOfTaskInput.Text = _numberOfTasks.ToString();
+                numberOfTaskSlider.Value = _numberOfTasks;
             }
         }
 
         private void UpdateButtons()
         {
-            scanButton.IsEnabled = !scanning;
-            stopButton.IsEnabled = scanning;
-            clearButton.IsEnabled = !scanning;
+            scanButton.IsEnabled = !_scanning;
+            stopButton.IsEnabled = _scanning;
+            clearButton.IsEnabled = !_scanning;
         }
 
         private void scanButton_Click(object sender, RoutedEventArgs e)
@@ -78,9 +83,9 @@ namespace PortScanner
             Mouse.OverrideCursor = Cursors.Wait;
             try
             {
-                scannerExecutor.StopAllTasks();
-                Task.WhenAll(scannerExecutor.GetRunningTasks().ToArray());
-                scanning = false;
+                _scannerExecutor.StopAllTasks();
+                Task.WhenAll(_scannerExecutor.GetRunningTasks().ToArray());
+                _scanning = false;
                 UpdateButtons();
             }
             finally
@@ -91,8 +96,8 @@ namespace PortScanner
 
         private void clearButton_Click(object sender, RoutedEventArgs e)
         {
-            items = new ObservableCollection<OpenPort>();
-            openPortListView.ItemsSource = items;
+            _items = new ObservableCollection<OpenPort>();
+            openPortListView.ItemsSource = _items;
             numberOfTaskSlider.Value = 1;
             IPRangeInput.Text = "";
         }
@@ -117,12 +122,12 @@ namespace PortScanner
         /// <param name="quickScan"></param> true if only common described ports to be scanned.
         private void DoScan(bool quickScan)
         {
-            scanning = true;
+            _scanning = true;
             UpdateButtons();
-            if (items.Count > 0)
+            if (_items.Count > 0)
             {
-                items = new ObservableCollection<OpenPort>();
-                openPortListView.ItemsSource = items;
+                _items = new ObservableCollection<OpenPort>();
+                openPortListView.ItemsSource = _items;
             }
 
             string ipstr = IPRangeInput.Text;
@@ -144,33 +149,51 @@ namespace PortScanner
 
 
             IEnumerable<IPAddress> enumerable = ipRange.GetAllIP();
-            scannerExecutor = new ScannerExecutor(numberOfTasks);
-            scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan);
+            _scannerExecutor = new ScannerExecutor(_numberOfTasks);
+            _scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan, _timeOutDuration);
 
 
             stopButton.IsEnabled = true;
-            Task.WhenAll(scannerExecutor.GetRunningTasks().ToArray());
-            logger.Trace("ALL FINISHED");
+            Task.WhenAll(_scannerExecutor.GetRunningTasks().ToArray());
+            Logger.Trace("ALL FINISHED");
         }
 
         public void UpdateGui(OpenPort port)
         {
-            logger.Trace("Before dispatcher for port{}", port.Port);
+            Logger.Trace("Before dispatcher for port{}", port.Port);
             Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    logger.Debug("Adding port inside dispatcher");
-                    this.items.Add(port);
+                    Logger.Debug("Adding port inside dispatcher");
+                    this._items.Add(port);
                 }
             ));
         }
 
         private void OnInputError(Exception ex)
         {
-            logger.Error(ex);
+            Logger.Error(ex);
             IPRangeInput.Focus();
             IPRangeInput.BorderBrush = System.Windows.Media.Brushes.Red;
-            scanning = false;
+            _scanning = false;
             UpdateButtons();
+        }
+
+        private void timeoutInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!int.TryParse(timeoutInput.Text, out _timeOutDuration))
+            {
+                // If not int clear textbox text
+                timeoutInput.Clear();
+            }
+            else
+            {
+                if (_timeOutDuration < MinTimeOutDuration || _timeOutDuration > MaxTimeOutDuration)
+                {
+                    _timeOutDuration = DefaultTimeOutDuration;
+                }
+
+                timeoutInput.Text = _timeOutDuration.ToString();
+            }
         }
     }
 }

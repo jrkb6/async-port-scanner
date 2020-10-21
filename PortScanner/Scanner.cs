@@ -19,6 +19,7 @@ namespace PortScanner
         private static Logger logger = LogManager.GetCurrentClassLogger();
         private const int MinPort = 1;
         private const int MaxPort = 65535;
+        private int timeOutDuration;
         readonly List<IPAddress> ips;
 
         public static int[] commonPorts = new[]
@@ -40,16 +41,18 @@ namespace PortScanner
             8090
         };
 
-        public Scanner(List<IPAddress> ips)
+        public Scanner(List<IPAddress> ips, int timeOutDuration)
         {
             logger.Info("Scanner initialized..");
             this.ips = ips;
+            this.timeOutDuration = timeOutDuration;
         }
 
-        public Scanner(IEnumerable<IPAddress> addresses)
+        public Scanner(IEnumerable<IPAddress> addresses, int timeOutDuration)
         {
             logger.Info("Scanner initialized..");
             this.ips = addresses.ToList();
+            this.timeOutDuration = timeOutDuration;
         }
 
 
@@ -151,7 +154,7 @@ namespace PortScanner
         private async Task ScanPortsAsync(IPAddress address, int port, Action<OpenPort> callback,
             CancellationToken mainTaskToken)
         {
-            var timeOut = TimeSpan.FromSeconds(5);
+            var timeOut = TimeSpan.FromMilliseconds(timeOutDuration);
             var cancellationCompletionSource = new TaskCompletionSource<bool>();
 
             try
@@ -188,31 +191,6 @@ namespace PortScanner
             catch (TaskCanceledException)
             {
                 logger.Trace("Port skipped {}", port);
-            }
-        }
-
-        private void ScanPort(IPAddress address, int port, Action<OpenPort> callback,
-            CancellationToken mainTaskToken)
-        {
-            if (mainTaskToken.IsCancellationRequested)
-            {
-                logger.Trace("Port skipped {}", port);
-                return;
-            }
-
-            using (var client = new TcpClient())
-            {
-                try
-                {
-                    logger.Trace("Connection requesting for {}:{}", address.ToString(), port);
-                    client.Connect(address, port);
-                    logger.Trace("Open port {} from host {}", port, address.ToString());
-                    callback(new OpenPort() {Host = address.ToString(), Port = port});
-                }
-                catch (Exception)
-                {
-                    logger.Trace("Port skipped {}", port);
-                }
             }
         }
     }
