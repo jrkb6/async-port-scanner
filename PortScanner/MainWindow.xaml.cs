@@ -38,6 +38,7 @@ namespace PortScanner
             clearButton.IsEnabled = false;
             numberOfTaskSlider.Maximum = MaxNumberOfTasks;
             _timeOutDuration = DefaultTimeOutDuration;
+            timeoutInput.Text = _timeOutDuration.ToString();
         }
 
 
@@ -122,8 +123,7 @@ namespace PortScanner
         /// <param name="quickScan"></param> true if only common described ports to be scanned.
         private void DoScan(bool quickScan)
         {
-            _scanning = true;
-            UpdateButtons();
+           
             if (_items.Count > 0)
             {
                 _items = new ObservableCollection<OpenPort>();
@@ -139,15 +139,25 @@ namespace PortScanner
             catch (ArgumentNullException ex)
             {
                 OnInputError(ex);
+                ShowErrorMessage("Empty ip information given..", "IP information mismatch");
                 return;
             }
             catch (ArgumentException ex)
             {
                 OnInputError(ex);
+                ShowErrorMessage("Either use 127.0.0.1/24 or 127.0.0.1-255 format for ip input",
+                    "IP information mismatch");
                 return;
             }
 
+            if (!ValidateTimeOutInput())
+            {
+                OnInputError(new Exception("Invalid timeout"));
+                return;
+            }
 
+            _scanning = true;
+            UpdateButtons();
             IEnumerable<IPAddress> enumerable = ipRange.GetAllIP();
             _scannerExecutor = new ScannerExecutor(_numberOfTasks);
             _scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan, _timeOutDuration);
@@ -178,22 +188,35 @@ namespace PortScanner
             UpdateButtons();
         }
 
-        private void timeoutInput_TextChanged(object sender, TextChangedEventArgs e)
+ 
+
+        private void ShowErrorMessage(string message, String caption)
+        {
+            MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+
+        private bool ValidateTimeOutInput()
         {
             if (!int.TryParse(timeoutInput.Text, out _timeOutDuration))
             {
                 // If not int clear textbox text
                 timeoutInput.Clear();
+                ShowErrorMessage("Write numbers only in range 2000 - 8000 ms", "Invalid Timeout Settings");
             }
             else
             {
                 if (_timeOutDuration < MinTimeOutDuration || _timeOutDuration > MaxTimeOutDuration)
                 {
                     _timeOutDuration = DefaultTimeOutDuration;
+                    ShowErrorMessage("Write numbers only in range 2000 - 8000 ms", "Invalid Timeout Settings");
                 }
-
-                timeoutInput.Text = _timeOutDuration.ToString();
+                else
+                {
+                    return true;
+                }
             }
+
+            return false;
         }
     }
 }
