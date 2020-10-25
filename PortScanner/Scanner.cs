@@ -21,7 +21,13 @@ namespace PortScanner
         private const int MaxPort = 65535;
         private int timeOutDuration;
         readonly List<IPAddress> ips;
-
+        private static int MaxNumberOfConnection;
+        private static int numberOfConnections = 0;
+        public static int NumberOfConnections
+        {
+            get => numberOfConnections;
+            set => numberOfConnections = value;
+        }
         public static int[] commonPorts = new[]
         {
             20,
@@ -41,20 +47,23 @@ namespace PortScanner
             8090
         };
 
-        public Scanner(List<IPAddress> ips, int timeOutDuration)
+        public Scanner(List<IPAddress> ips, int timeOutDuration, int _maxNumberOfConnections)
         {
             logger.Info("Scanner initialized..");
             this.ips = ips;
             this.timeOutDuration = timeOutDuration;
+            MaxNumberOfConnection = _maxNumberOfConnections;
         }
 
-        public Scanner(IEnumerable<IPAddress> addresses, int timeOutDuration)
+        public Scanner(IEnumerable<IPAddress> addresses, int timeOutDuration, int _maxNumberOfConnections)
         {
             logger.Info("Scanner initialized..");
             this.ips = addresses.ToList();
             this.timeOutDuration = timeOutDuration;
+            MaxNumberOfConnection = _maxNumberOfConnections;
         }
 
+       
 
         /// <summary>
         /// 
@@ -144,6 +153,7 @@ namespace PortScanner
             }
         }
 
+
         /// <summary>
         /// Request to given host in a given port. If req. is replied in timeout, then add port to observ. items via callback.
         /// </summary>
@@ -156,41 +166,59 @@ namespace PortScanner
         {
             var timeOut = TimeSpan.FromMilliseconds(timeOutDuration);
             var cancellationCompletionSource = new TaskCompletionSource<bool>();
-
-            try
+            if (numberOfConnections <= MaxNumberOfConnection)
             {
-                using (var cts = new CancellationTokenSource(timeOut))
+                logger.Trace("Client opened..");
+                try
                 {
-                    using (var client = new TcpClient())
+                    using (var cts = new CancellationTokenSource(timeOut))
                     {
-                        if (mainTaskToken.IsCancellationRequested)
+                        using (var client = new TcpClient())
                         {
-                            logger.Trace("Main thread closed. Stopping checking for port >= {} ", port);
-                            return;
-                        }
-
-                        logger.Trace("Connection requesting for {}:{}", address.ToString(), port);
-                        var task = client.ConnectAsync(address, port);
-                        using (cts.Token.Register(() => cancellationCompletionSource.TrySetResult(true)))
-                        {
-                            if (task != await Task.WhenAny(task, cancellationCompletionSource.Task))
+                            if (mainTaskToken.IsCancellationRequested)
                             {
-                                //logger.Trace("Exception on port {} from host {}", port, address.ToString());
-                                throw new TaskCanceledException(task);
+                                logger.Trace("Main thread closed. Stopping checking for port: {} ", port);
+                                return;
                             }
 
-                            if (task.IsCompletedSuccessfully && !mainTaskToken.IsCancellationRequested)
+                            logger.Trace("Connection requesting for {}:{}", address.ToString(), port);
+                            var task = client.ConnectAsync(address, port);
+                            Interlocked.Increment(ref numberOfConnections);
+                            logger.Trace("Opened connection number: {}", numberOfConnections);
+                            using (cts.Token.Register(() => cancellationCompletionSource.TrySetResult(true)))
                             {
-                                logger.Trace("Open port {} from host {}", port, address.ToString());
-                                callback(new OpenPort() {Host = address.ToString(), Port = port});
+                                if (task != await Task.WhenAny(task, cancellationCompletionSource.Task))
+                                {
+                                    //logger.Trace("Exception on port {} from host {}", port, address.ToString());
+                                    throw new TaskCanceledException(task);
+                                }
+
+                                if (task.IsCompletedSuccessfully && !mainTaskToken.IsCancellationRequested)
+                                {
+                                    logger.Trace("Open port {} from host {}", port, address.ToString());
+                                    callback(new OpenPort() {Host = address.ToString(), Port = port});
+                                }
                             }
                         }
                     }
                 }
+                catch (TaskCanceledException)
+                {
+                    logger.Trace("Port skipped {}", port);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref numberOfConnections);
+                    logger.Trace("Client closed..");
+                }
             }
-            catch (TaskCanceledException)
+            else
             {
-                logger.Trace("Port skipped {}", port);
+                logger.Trace("{} of connections are still active. Waiting for available connection",
+                    numberOfConnections);
+                await Task.Delay(1000);
+                //reschedule 
+                ScanPortsAsync(address, port, callback, mainTaskToken);
             }
         }
     }

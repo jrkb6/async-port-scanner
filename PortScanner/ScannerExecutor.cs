@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -38,8 +37,8 @@ namespace PortScanner
         /// <param name="addresses"></param>
         /// <param name="callback"></param>
         /// <param name="quickScan"></param>
-        public void BuildExecutor(IEnumerable<IPAddress> addresses, Action<OpenPort> callback,
-            bool quickScan, int timeoutDuration)
+        public async void BuildExecutor(IEnumerable<IPAddress> addresses, Action<OpenPort> callback,
+            bool quickScan, int timeoutDuration, int maxNumberOfConnections)
         {
             CancellationToken cancellationToken = _cancellationTokenSource.Token;
             //batch ips to processors
@@ -53,7 +52,7 @@ namespace PortScanner
 
                 foreach (var ipList in enumerable)
                 {
-                    var scanner = new Scanner(ipList, timeoutDuration);
+                    var scanner = new Scanner(ipList, timeoutDuration, maxNumberOfConnections);
                     var task = Task.Run(() => scanner.ScanAsync(callback, quickScan, cancellationToken),
                         cancellationToken);
 
@@ -75,12 +74,13 @@ namespace PortScanner
 
                 foreach (var ports in portsChunks)
                 {
-                    var scanner = new Scanner(addresses, timeoutDuration);
+                    var scanner = new Scanner(addresses, timeoutDuration, maxNumberOfConnections);
                     var task = Task.Run(() => scanner.ScanAsyncOnPorts(callback, quickScan, cancellationToken, ports),
                         cancellationToken);
                     _runningTasks.Add(task);
                 }
             }
+            
         }
 
         /// <summary>
@@ -145,5 +145,6 @@ namespace PortScanner
             _runningTasks.RemoveAll(task => task == null);
             return _runningTasks;
         }
+
     }
 }

@@ -2,7 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -25,8 +28,9 @@ namespace PortScanner
         private const int MaxNumberOfTasks = 4001;
         private int _timeOutDuration;
         private const int MaxTimeOutDuration = 8000; //ms
-        private const int MinTimeOutDuration = 1000;
+        private const int MinTimeOutDuration = 100;
         private const int DefaultTimeOutDuration = 5000;
+        private int MaxNumberOfConnections = 5000;
 
         public MainWindow()
         {
@@ -66,6 +70,7 @@ namespace PortScanner
             scanButton.IsEnabled = !_scanning;
             stopButton.IsEnabled = _scanning;
             clearButton.IsEnabled = !_scanning;
+            saveButton.Visibility = _scanning ? Visibility.Visible : Visibility.Hidden;
         }
 
         private void scanButton_Click(object sender, RoutedEventArgs e)
@@ -73,20 +78,27 @@ namespace PortScanner
             DoScan(false);
         }
 
+
         private void quickScanButton_Click(object sender, RoutedEventArgs e)
         {
             DoScan(true);
         }
 
+        private async void saveButton_Click(object sender, RoutedEventArgs e)
+        {
+            Logger.Trace("Save button called");
+            stopTasks();
+            await WriteOnFile();
+            Logger.Trace("Tasks stopped and saved.");
+            UpdateButtons();
+        }
 
         private void stopButton_Click(object sender, RoutedEventArgs e)
         {
             Mouse.OverrideCursor = Cursors.Wait;
             try
             {
-                _scannerExecutor.StopAllTasks();
-                Task.WhenAll(_scannerExecutor.GetRunningTasks().ToArray());
-                _scanning = false;
+                stopTasks();
                 UpdateButtons();
             }
             finally
@@ -95,12 +107,15 @@ namespace PortScanner
             }
         }
 
+
         private void clearButton_Click(object sender, RoutedEventArgs e)
         {
             _items = new ObservableCollection<OpenPort>();
             openPortListView.ItemsSource = _items;
             numberOfTaskSlider.Value = 1;
             IPRangeInput.Text = "";
+            numberOfConnectionInput.Text = "";
+            timeoutInput.Text = "";
         }
 
 
@@ -121,9 +136,8 @@ namespace PortScanner
         /// Scanner operation on ui 
         /// </summary>
         /// <param name="quickScan"></param> true if only common described ports to be scanned.
-        private void DoScan(bool quickScan)
+        private async void DoScan(bool quickScan)
         {
-           
             if (_items.Count > 0)
             {
                 _items = new ObservableCollection<OpenPort>();
@@ -156,16 +170,73 @@ namespace PortScanner
                 return;
             }
 
+            if (!ValidateNumberOfConnectionInput())
+            {
+                OnInputError(new Exception(" Invalid Number Of connections"));
+                return;
+            }
+
             _scanning = true;
             UpdateButtons();
             IEnumerable<IPAddress> enumerable = ipRange.GetAllIP();
             _scannerExecutor = new ScannerExecutor(_numberOfTasks);
-            _scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan, _timeOutDuration);
+            _scannerExecutor.BuildExecutor(enumerable, UpdateGui, quickScan, _timeOutDuration, MaxNumberOfConnections);
 
 
             stopButton.IsEnabled = true;
-            Task.WhenAll(_scannerExecutor.GetRunningTasks().ToArray());
-            Logger.Trace("ALL FINISHED");
+            bool isCancelled = false;
+            try
+            {
+                await Task.WhenAll(_scannerExecutor.GetRunningTasks().ToArray());
+            }
+            catch (TaskCanceledException ex)
+            {
+                isCancelled = true;
+            }
+            finally
+            {
+                Logger.Trace("ALL FINISHED");
+                _scanning = false;
+                UpdateButtons();
+            }
+
+            //if is cancelled save button is clicked no need to write results again.
+            if (!isCancelled)
+            {
+                await Task.WhenAll(WriteOnFile());
+            }
+        }
+
+        /// <summary>
+        /// Write Results to a text file to save data.
+        /// </summary>
+        /// <returns></returns>
+        private async Task WriteOnFile()
+        {
+            var portData = _items.Select(openPort => openPort.ToString()).ToList();
+            Logger.Debug("Writing results to report..");
+            var basedir = AppDomain.CurrentDomain.BaseDirectory;
+            var datetime = DateTime.Now.ToString("MM/dd/yyyy H-mm");
+            var path = @$"{basedir}/result_{datetime}.txt";
+            await File.WriteAllLinesAsync(path, portData, CancellationToken.None);
+            Logger.Debug("Report created");
+            MessageBox.Show($"Scan finished... Report created at: {path}", "Finished", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private async void stopTasks()
+        {
+            _scannerExecutor.StopAllTasks();
+            _scanning = false;
+            try
+            {
+                await Task.WhenAll(_scannerExecutor.GetRunningTasks().ToArray());
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.Debug("Tasks are cancelled from user input.. ");
+            }
+           
         }
 
         public void UpdateGui(OpenPort port)
@@ -188,13 +259,13 @@ namespace PortScanner
             UpdateButtons();
         }
 
- 
 
         private void ShowErrorMessage(string message, String caption)
         {
             MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
+        //TODO move validators to InputValidator
         private bool ValidateTimeOutInput()
         {
             if (!int.TryParse(timeoutInput.Text, out _timeOutDuration))
@@ -209,6 +280,32 @@ namespace PortScanner
                 {
                     _timeOutDuration = DefaultTimeOutDuration;
                     ShowErrorMessage("Write numbers only in range 2000 - 8000 ms", "Invalid Timeout Settings");
+                }
+                else
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool ValidateNumberOfConnectionInput()
+        {
+            if (!int.TryParse(numberOfConnectionInput.Text, out MaxNumberOfConnections))
+            {
+                // If not int clear textbox text
+                numberOfConnectionInput.Clear();
+                ShowErrorMessage("Available only for 20000 active connection.",
+                    "Invalid Number Of Connection Settings");
+            }
+            else
+            {
+                if (MaxNumberOfConnections < 0 || MaxNumberOfConnections > 20000)
+                {
+                    MaxNumberOfConnections = 10000;
+                    ShowErrorMessage("Available only for 20000 active connection.",
+                        "Invalid Number Of Connection Settings");
                 }
                 else
                 {

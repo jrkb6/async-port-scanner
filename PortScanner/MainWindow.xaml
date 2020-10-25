@@ -32,8 +32,11 @@
             </ListView.View>
         </ListView>
         <Button x:Name="quickScanButton" Content="Scan Common Ports" HorizontalAlignment="Left" Margin="232,65,0,0" VerticalAlignment="Top" Click="quickScanButton_Click" Grid.Column="5" Width="125" Height="20"/>
-        <TextBox x:Name="timeoutInput" ToolTipService.ShowDuration="4000" HorizontalAlignment="Left" Margin="22,141,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="74" Height="24" Grid.Column="4" Grid.ColumnSpan="2"/>
+        <TextBox x:Name="timeoutInput" ToolTip="Connection waiting time for response." ToolTipService.ShowDuration="4000" HorizontalAlignment="Left" Margin="22,126,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="74" Height="24" Grid.Column="4" Grid.ColumnSpan="2"/>
         <TextBlock HorizontalAlignment="Left" Margin="22,102,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="137" Height="16" Grid.Column="4" Grid.ColumnSpan="2" RenderTransformOrigin="0.538,1.936" Text="Connection Timeout (ms)"/>
+        <TextBox x:Name="numberOfConnectionInput" ToolTip="Number of Active Connections together.(Recommended Max: 40000)" ToolTipService.ShowDuration="4000" HorizontalAlignment="Left" Margin="22,189,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="74" Height="24" Grid.Column="4" Grid.ColumnSpan="2"/>
+        <TextBlock HorizontalAlignment="Left" Margin="22,165,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="191" Height="16" Grid.Column="4" Grid.ColumnSpan="2" RenderTransformOrigin="0.538,1.936"><Run Text="Number of Act"/><Run Text="ive Connections"/></TextBlock>
+        <Button x:Name="saveButton" Content="Save&amp;Stop" HorizontalAlignment="Left" Margin="153,65,0,0" VerticalAlignment="Top" Click="saveButton_Click" Grid.Column="5" Width="76" Visibility="Hidden" />
 
     </Grid>
 </Window>
