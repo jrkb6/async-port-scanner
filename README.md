@@ -11,10 +11,10 @@ Release not available for now.. Open for contribution.
 ## Usage
 
 Parameters for custom scan:
-IP Range: CIDR ip notation or 127.0.0.1-245 type of range notation.
-Number of Parallel Tasks: # of threads sharing the ports and ips. Currently max: 4000
-Connection Timeout: Waiting time for response in milliseconds. Default: 5000
-Number of Active Connections: Max number of connections at arbitrary time of scanning. (Be careful since you're opening tcp socket)
+* IP Range: CIDR ip notation or 127.0.0.1-245 type of range notation.
+* Number of Parallel Tasks: # of threads sharing the ports and ips. Currently max: 4000
+* Connection Timeout: Waiting time for response in milliseconds. Default: 5000
+* Number of Active Connections: Max number of connections at arbitrary time of scanning. (Be careful since you're opening tcp socket)
 
 
 ## Contributing
